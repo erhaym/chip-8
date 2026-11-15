@@ -132,6 +132,21 @@ int fetch(CHIP8_CPU *cpu, uint16_t *instr) {
     return 0;
 }
 
+void decode(uint16_t instr) {
+    uint16_t nnn = instr & 0x0FFF;
+    uint8_t nn = nnn & 0x00FF;
+    uint8_t n = nn & 0x0F;
+    uint8_t x = (instr & 0x0F00) >> 8;
+    uint8_t y = (instr & 0x00F0) >> 4;
+
+    printf("OP: %X\n", instr >> 12);
+    printf("NNN: %03X\n", nnn);
+    printf("NN: %02X\n", nn);
+    printf("N: %X\n", n);
+    printf("X: %X\n", x);
+    printf("Y: %X\n", y);
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "ERROR: Please specify one argument (ROM file path)\n");
@@ -167,6 +182,8 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Instruction 1: %04X\nInstruction 2: %04X\n", instr_1, instr_2);
+
+    decode(0x8AB4);
 
     return 0;
 }
