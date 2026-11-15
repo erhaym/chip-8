@@ -102,16 +102,6 @@ int load_rom(CHIP8_CPU *cpu, char *path) {
 
     // printf("ROM loaded at %03X\n", ROM_START);
 
-    // printf("Memory contents:\n");
-
-    /*
-
-    for (size_t i = 0; i < file_size; i++) {
-        printf("0x%03X: %02X\n", (0x200 + (unsigned int)i), *(cpu->memory + (0x200 + (int) i)));
-    }
-
-    */
-
     fclose(fptr);
     
     return 0;
@@ -172,15 +162,42 @@ int decode(CHIP8_CPU *cpu, uint16_t instr) {
     printf("X: %X\n", x);
     printf("Y: %X\n", y);
 
-    // actually not ideal but will fix later
+    /* 
+    maybe not ideal but will fix later...
+        execute() essentially acts as a helper function
+        for decode() in this current version, a separation
+        between the functions' responsibilities may be required
+        later
+    */
+
     int exec_code = execute(cpu, op, nnn, nn, n, x, y);
+
     if (exec_code == 1) {
-        fprintf(stderr, "ERROR: Could not execute instruction\n");
         return 1;
     }
 
     return 0;
+}
 
+int step(CHIP8_CPU *cpu) {
+    uint16_t instr;
+
+    int f_status;
+
+    f_status = fetch(cpu, &instr);
+
+    if (f_status == 1) {
+        return 1;
+    } 
+
+    // decode AND execute actually
+    int x_status = decode(cpu, instr);
+
+    if (x_status == 1) {
+        return 1;
+    }
+
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -203,45 +220,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    uint16_t instr_1;
-    int c1 = fetch(&cpu, &instr_1);
-
-    if (c1 == 1) {
-        return 1;
-    }
-
-    uint16_t instr_2;
-    int c2 = fetch(&cpu, &instr_2);
-
-    if (c2 == 1) {
-        return 1;
-    }
-
-    printf("Instruction 1: %04X\nInstruction 2: %04X\n", instr_1, instr_2);
-
-    int sc = decode(&cpu, 0x6A05);
-
-    if (sc == 1) {
-        fprintf(stderr, "ERROR: Could not execute instruction\n");
-        return 1;
-    }
-
-    sc = decode(&cpu, 0x7A03);
-
-    if (sc == 1) {
-        fprintf(stderr, "ERROR: Could not execute instruction\n");
-        return 1;
-    }
-
-    sc = decode(&cpu, 0xA300);
-
-    if (sc == 1) {
-        fprintf(stderr, "ERROR: Could not execute instruction\n");
-        return 1;
+    for (int i = 0; i < 3; i++) {
+        if (step(&cpu) == 1) {
+            return 1;
+        }
     }
 
     printf("VA = %02X\n", cpu.gp_registers[VA]);
     printf("I = %04X\n", cpu.sp_registers[I]);
+    printf("PC = %04X\n", cpu.sp_registers[PC]);
 
 
     return 0;
