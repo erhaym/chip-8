@@ -10,6 +10,7 @@
 enum GeneralPurposeRegisters {
     V0, V1, V2, V3, V4, V5, V6, V7,
     V8, V9, VA, VB, VC, VD, VE, VF
+    // VF is also used as a flag register
 };
 
 enum SpecialPurposeRegisters {
@@ -128,6 +129,7 @@ int fetch(CHIP8_CPU *cpu, uint16_t *instr) {
 int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uint8_t x, uint8_t y) {
 
     switch (op) {
+        // REGISTER ARITHMETIC AND BIT OPS
         // VX := NN
         case 0x6:
             cpu->gp_registers[x] = nn;
@@ -140,20 +142,118 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
         case 0xA:
             cpu->sp_registers[I] = nnn;
             break;
+        case 0x8:
+            switch(n) {
+                // VX := VY
+                case 0x0:
+                    cpu->gp_registers[x] = cpu->gp_registers[y];
+                    break;
+
+                // VX := VX ∨ VY
+                case 0x1:
+                    cpu->gp_registers[x] = cpu->gp_registers[x] | cpu->gp_registers[y];
+                    break;
+
+                // VX := VX ∧ VY
+                case 0x2:
+                    cpu->gp_registers[x] = cpu->gp_registers[x] & cpu->gp_registers[y];
+                    break;
+
+                // VX := VX ⊕ VY
+                case 0x3:
+                    cpu->gp_registers[x] = cpu->gp_registers[x] ^ cpu->gp_registers[y];
+                    break;
+
+                // VX := VX + VY
+                case 0x4:
+                    if ((cpu->gp_registers[x] + cpu->gp_registers[y]) > 255) {
+                        cpu->gp_registers[x] = cpu->gp_registers[x] + cpu->gp_registers[y];
+                        // carry occured
+                        cpu->gp_registers[VF] = 1;
+                        break;
+                    }
+
+                    cpu->gp_registers[x] = cpu->gp_registers[x] + cpu->gp_registers[y];
+                    // carry didn't occur
+                    cpu->gp_registers[VF] = 0;
+                    break;
+
+                // VX := VX - VY
+                case 0x5:
+                    if ((cpu->gp_registers[x] - cpu->gp_registers[y]) < 0) {
+                        cpu->gp_registers[x] = cpu->gp_registers[x] - cpu->gp_registers[y];
+                        // borrow occured
+                        cpu->gp_registers[VF] = 0;
+                        break;
+                    }
+
+                    cpu->gp_registers[x] = cpu->gp_registers[x] - cpu->gp_registers[y];
+                    // borrow did not occur
+                    cpu->gp_registers[VF] = 1;
+                    break;
+
+                // VX := VX >> 1;
+                case 0x6: {
+                    // SINCE VF IS A GPR IT'S POSSIBLE THAT x = 0xF
+
+                    uint8_t vx_cpy = cpu->gp_registers[x];
+
+                    cpu->gp_registers[x] >>= 1;
+
+                    cpu->gp_registers[VF] = vx_cpy & 0x01;
+                    break;
+                }
+
+                // VX := VY - VX
+                case 0x7:
+                    if ((cpu->gp_registers[y] - cpu->gp_registers[x]) < 0) {
+                        cpu->gp_registers[x] = cpu->gp_registers[y] - cpu->gp_registers[x];
+                        // borrow occured
+                        cpu->gp_registers[VF] = 0;
+                        break;
+                    }
+
+                    cpu->gp_registers[x] = cpu->gp_registers[y] - cpu->gp_registers[x];
+                    // borrow did not occur
+                    cpu->gp_registers[VF] = 1;
+                    break;
+
+                // VX := VX >> 1;
+                case 0xE: {
+                    // SINCE VF IS A GPR IT'S POSSIBLE THAT x = 0xF
+
+                    uint8_t vx_cpy = cpu->gp_registers[x];
+
+                    cpu->gp_registers[x] <<= 1;
+
+                    cpu->gp_registers[VF] = (vx_cpy & 0x80) >> 7;
+                    break;
+                }
+
+                default:
+                    fprintf(stderr, "ERROR: Unrecognized instruction '%X%04X'\n", op, nnn);
+                    return 1;
+            }
+
+            break;
+        // ------------------------------------------------------------
         // JUMPS
         case 0x1:
             cpu->sp_registers[PC] = nnn;
             break;
+
         case 0x3:
             if (cpu->gp_registers[x] == nn) {
                 cpu->sp_registers[PC] += 2;
             }
             break;
+
         case 0x4:
             if (cpu->gp_registers[x] != nn) {
                 cpu->sp_registers[PC] += 2;
             }
             break;
+
         case 0x5:
             if (n != 0) {
                 fprintf(stderr, "ERROR: Invalid instruction\n");
@@ -164,6 +264,7 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
                 cpu->sp_registers[PC] += 2;
             }
             break;
+
         case 0x9:
             if (n != 0) {
                 fprintf(stderr, "ERROR: Invalid instruction\n");
@@ -174,6 +275,7 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
                 cpu->sp_registers[PC] += 2;
             }
             break;
+        // ------------------------------------------------------------
         // SUBROUTINES
         case 0x2:
             if (cpu->sp_registers[SP] >= 16) {
@@ -185,6 +287,7 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
             cpu->sp_registers[SP]++;
             cpu->sp_registers[PC] = nnn;
             break;
+
         case 0x0:
             switch(nnn) {
                 case 0x0EE:
@@ -193,16 +296,17 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
                         return 1;
                     }
 
-                    // switch(...) {}
                     cpu->sp_registers[SP]--;
                     cpu->sp_registers[PC] = cpu->stack[cpu->sp_registers[SP]];
                     break;
                 // case ...:
                 default:
-                    fprintf(stderr, "ERROR: Unrecognized operation '%X%04X'\n", op, nnn);
+                    fprintf(stderr, "ERROR: Unrecognized instruction '%X%04X'\n", op, nnn);
                     return 1;
             }
             break;
+        // -----------------------------------------------------------
+
         default:
             fprintf(stderr, "ERROR: Unrecognized operation '%X'\n", op);
             return 1;
@@ -219,13 +323,13 @@ int decode(CHIP8_CPU *cpu, uint16_t instr) {
     uint8_t x = (instr & 0x0F00) >> 8;
     uint8_t y = (instr & 0x00F0) >> 4;
 
-    printf("Instruction: %04X\n", instr);
+    /* printf("Instruction: %04X\n", instr);
     printf("OP: %X\n", op);
     printf("NNN: %03X\n", nnn);
     printf("NN: %02X\n", nn);
     printf("N: %X\n", n);
     printf("X: %X\n", x);
-    printf("Y: %X\n", y);
+    printf("Y: %X\n", y); */
 
     /* 
     maybe not ideal but will fix later...
@@ -296,6 +400,7 @@ int main(int argc, char *argv[]) {
     printf("I = %04X\n", cpu.sp_registers[I]);
     printf("PC = %04X\n", cpu.sp_registers[PC]);
     printf("SP = %04X\n", cpu.sp_registers[SP]);
+    printf("VF = %02X\n", cpu.gp_registers[VF]);
 
 
     return 0;
