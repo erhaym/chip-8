@@ -4,13 +4,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+// addresses are 12 bits long
 #define MEMORY_SIZE 4096
 #define ROM_START 0x200
 
 enum GeneralPurposeRegisters {
+    // VF: also used as a flag register
     V0, V1, V2, V3, V4, V5, V6, V7,
     V8, V9, VA, VB, VC, VD, VE, VF
-    // VF is also used as a flag register
 };
 
 enum SpecialPurposeRegisters {
@@ -25,6 +26,7 @@ enum Timers {
 };
 
 typedef struct {
+    // memory is byte-adressable
     uint8_t memory[MEMORY_SIZE];
     // general-purpose registers
     uint8_t gp_registers[16];
@@ -93,8 +95,6 @@ int load_rom(CHIP8_CPU *cpu, char *path) {
     // long -> size_t casting
     size_t file_size = (size_t)pos_eof;
 
-    // printf("ROM size: %zu\n", file_size);
-
     size_t bytes_read = fread((cpu->memory + ROM_START), sizeof(char), file_size, fptr);
 
     if (bytes_read != file_size) {
@@ -102,8 +102,6 @@ int load_rom(CHIP8_CPU *cpu, char *path) {
         fclose(fptr);
         return 1;
     }
-
-    // printf("ROM loaded at %03X\n", ROM_START);
 
     fclose(fptr);
     
@@ -194,7 +192,7 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
 
                 // VX := VX >> 1;
                 case 0x6: {
-                    // SINCE VF IS A GPR IT'S POSSIBLE THAT x = 0xF
+                    // since VF is a GPR it's possible that x = 0xF
 
                     uint8_t vx_cpy = cpu->gp_registers[x];
 
@@ -220,7 +218,7 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
 
                 // VX := VX >> 1;
                 case 0xE: {
-                    // SINCE VF IS A GPR IT'S POSSIBLE THAT x = 0xF
+                    // since VF is a GPR it's possible that x = 0xF
 
                     uint8_t vx_cpy = cpu->gp_registers[x];
 
@@ -323,20 +321,10 @@ int decode(CHIP8_CPU *cpu, uint16_t instr) {
     uint8_t x = (instr & 0x0F00) >> 8;
     uint8_t y = (instr & 0x00F0) >> 4;
 
-    /* printf("Instruction: %04X\n", instr);
-    printf("OP: %X\n", op);
-    printf("NNN: %03X\n", nnn);
-    printf("NN: %02X\n", nn);
-    printf("N: %X\n", n);
-    printf("X: %X\n", x);
-    printf("Y: %X\n", y); */
-
     /* 
-    maybe not ideal but will fix later...
         execute() essentially acts as a helper function
         for decode() in this current version, a separation
         between the functions' responsibilities may be required
-        later
     */
 
     int exec_code = execute(cpu, op, nnn, nn, n, x, y);
@@ -359,7 +347,7 @@ int step(CHIP8_CPU *cpu) {
         return 1;
     } 
 
-    // decode AND execute actually
+    // decode, execute
     int x_status = decode(cpu, instr);
 
     if (x_status == 1) {
@@ -376,8 +364,7 @@ int main(int argc, char *argv[]) {
     }
 
     char *rom_path = argv[1];
-
-    // initialize all members of the struct to 0
+    
     CHIP8_CPU cpu;
 
     init(&cpu);
@@ -388,20 +375,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ERROR: ROM could not be loaded\n");
         return 1;
     }
-
-    for (int i = 0; i < 5; i++) {
-        if (step(&cpu) == 1) {
-            return 1;
-        }
-    }
-
-    printf("V0 = %02X\n", cpu.gp_registers[V0]);
-    printf("V1 = %02X\n", cpu.gp_registers[V1]);
-    printf("I = %04X\n", cpu.sp_registers[I]);
-    printf("PC = %04X\n", cpu.sp_registers[PC]);
-    printf("SP = %04X\n", cpu.sp_registers[SP]);
-    printf("VF = %02X\n", cpu.gp_registers[VF]);
-
 
     return 0;
 }
