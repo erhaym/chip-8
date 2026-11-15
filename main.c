@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MEMORY_SIZE 4096
 #define ROM_START 0x200
@@ -132,19 +133,54 @@ int fetch(CHIP8_CPU *cpu, uint16_t *instr) {
     return 0;
 }
 
-void decode(uint16_t instr) {
+int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uint8_t x, uint8_t y) {
+
+    switch (op) {
+        // VX := NN
+        case 0x6:
+            cpu->gp_registers[x] = nn;
+            break;
+        // VX += NN
+        case 0x7:
+            cpu->gp_registers[x] += nn;
+            break;
+        // I = NNN
+        case 0xA:
+            cpu->sp_registers[I] = nnn;
+            break;
+        default:
+            fprintf(stderr, "ERROR: Unrecognized operation '%X'\n", op);
+            return 1;
+    }
+
+    return 0;
+}
+
+int decode(CHIP8_CPU *cpu, uint16_t instr) {
+    uint8_t op = instr >> 12;
     uint16_t nnn = instr & 0x0FFF;
     uint8_t nn = nnn & 0x00FF;
     uint8_t n = nn & 0x0F;
     uint8_t x = (instr & 0x0F00) >> 8;
     uint8_t y = (instr & 0x00F0) >> 4;
 
-    printf("OP: %X\n", instr >> 12);
+    printf("Instruction: %04X\n", instr);
+    printf("OP: %X\n", op);
     printf("NNN: %03X\n", nnn);
     printf("NN: %02X\n", nn);
     printf("N: %X\n", n);
     printf("X: %X\n", x);
     printf("Y: %X\n", y);
+
+    // actually not ideal but will fix later
+    int exec_code = execute(cpu, op, nnn, nn, n, x, y);
+    if (exec_code == 1) {
+        fprintf(stderr, "ERROR: Could not execute instruction\n");
+        return 1;
+    }
+
+    return 0;
+
 }
 
 int main(int argc, char *argv[]) {
@@ -183,7 +219,30 @@ int main(int argc, char *argv[]) {
 
     printf("Instruction 1: %04X\nInstruction 2: %04X\n", instr_1, instr_2);
 
-    decode(0x8AB4);
+    int sc = decode(&cpu, 0x6A05);
+
+    if (sc == 1) {
+        fprintf(stderr, "ERROR: Could not execute instruction\n");
+        return 1;
+    }
+
+    sc = decode(&cpu, 0x7A03);
+
+    if (sc == 1) {
+        fprintf(stderr, "ERROR: Could not execute instruction\n");
+        return 1;
+    }
+
+    sc = decode(&cpu, 0xA300);
+
+    if (sc == 1) {
+        fprintf(stderr, "ERROR: Could not execute instruction\n");
+        return 1;
+    }
+
+    printf("VA = %02X\n", cpu.gp_registers[VA]);
+    printf("I = %04X\n", cpu.sp_registers[I]);
+
 
     return 0;
 }
