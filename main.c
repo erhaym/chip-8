@@ -25,7 +25,9 @@ enum Timers {
 
 typedef struct {
     uint8_t memory[MEMORY_SIZE];
+    // general-purpose registers
     uint8_t gp_registers[16];
+    // special-purpose registers
     uint16_t sp_registers[3];
     uint8_t timers[2];
     // 64 x 32 display
@@ -138,6 +140,69 @@ int execute(CHIP8_CPU *cpu, uint8_t op, uint16_t nnn, uint8_t nn, uint8_t n, uin
         case 0xA:
             cpu->sp_registers[I] = nnn;
             break;
+        // JUMPS
+        case 0x1:
+            cpu->sp_registers[PC] = nnn;
+            break;
+        case 0x3:
+            if (cpu->gp_registers[x] == nn) {
+                cpu->sp_registers[PC] += 2;
+            }
+            break;
+        case 0x4:
+            if (cpu->gp_registers[x] != nn) {
+                cpu->sp_registers[PC] += 2;
+            }
+            break;
+        case 0x5:
+            if (n != 0) {
+                fprintf(stderr, "ERROR: Invalid instruction\n");
+                return 1;
+            }
+
+            if (cpu->gp_registers[x] == cpu->gp_registers[y]) {
+                cpu->sp_registers[PC] += 2;
+            }
+            break;
+        case 0x9:
+            if (n != 0) {
+                fprintf(stderr, "ERROR: Invalid instruction\n");
+                return 1;
+            }
+
+            if (cpu->gp_registers[x] != cpu->gp_registers[y]) {
+                cpu->sp_registers[PC] += 2;
+            }
+            break;
+        // SUBROUTINES
+        case 0x2:
+            if (cpu->sp_registers[SP] >= 16) {
+                fprintf(stderr, "ERROR: Stack overflow\n");
+                return 1;
+            }
+
+            cpu->stack[cpu->sp_registers[SP]] = cpu->sp_registers[PC];
+            cpu->sp_registers[SP]++;
+            cpu->sp_registers[PC] = nnn;
+            break;
+        case 0x0:
+            switch(nnn) {
+                case 0x0EE:
+                    if (cpu->sp_registers[SP] == 0) {
+                        fprintf(stderr, "ERROR: Stack underflow\n");
+                        return 1;
+                    }
+
+                    // switch(...) {}
+                    cpu->sp_registers[SP]--;
+                    cpu->sp_registers[PC] = cpu->stack[cpu->sp_registers[SP]];
+                    break;
+                // case ...:
+                default:
+                    fprintf(stderr, "ERROR: Unrecognized operation '%X%04X'\n", op, nnn);
+                    return 1;
+            }
+            break;
         default:
             fprintf(stderr, "ERROR: Unrecognized operation '%X'\n", op);
             return 1;
@@ -220,15 +285,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
         if (step(&cpu) == 1) {
             return 1;
         }
     }
 
-    printf("VA = %02X\n", cpu.gp_registers[VA]);
+    printf("V0 = %02X\n", cpu.gp_registers[V0]);
+    printf("V1 = %02X\n", cpu.gp_registers[V1]);
     printf("I = %04X\n", cpu.sp_registers[I]);
     printf("PC = %04X\n", cpu.sp_registers[PC]);
+    printf("SP = %04X\n", cpu.sp_registers[SP]);
 
 
     return 0;
